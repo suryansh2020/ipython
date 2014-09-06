@@ -51,6 +51,7 @@ from IPython.utils.module_paths import find_mod
 from IPython.utils.path import get_py_filename, unquote_filename, shellglob
 from IPython.utils.timing import clock, clock2
 from IPython.utils.warn import warn, error
+from IPython.extensions.autoreload import AutoreloadMagics
 
 if PY3:
     from io import StringIO
@@ -463,6 +464,10 @@ python-profiler package from non-free.""")
 
         Options:
 
+        -C
+            automatically reloads the files dependencies. This is a
+            work in progress.
+
         -n
           __name__ is NOT set to '__main__', but to the running file's name
           without extension (as python does under import).  This allows running
@@ -573,8 +578,14 @@ python-profiler package from non-free.""")
 
         # get arguments and set sys.argv for program to be run.
         opts, arg_lst = self.parse_options(parameter_s,
-                                           'nidtN:b:pD:l:rs:T:em:G',
+                                           'nidtN:b:pD:l:rs:T:em:G:C',
                                            mode='list', list_all=1)
+
+        if 'C' in opts:
+            # testing out a flag for %autoreload
+            am = AutoreloadMagics()
+            am.autoreload(2)
+        
         if "m" in opts:
             modulename = opts["m"][0]
             modpath = find_mod(modulename)

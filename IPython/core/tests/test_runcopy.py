@@ -24,7 +24,9 @@ from IPython.utils import py3compat
 from IPython.utils.io import capture_output
 from IPython.utils.tempdir import TemporaryDirectory
 from IPython.core import debugger
+
 from IPython.extensions.autoreload import ModuleReloader
+from IPython.extensions.autoreload.tests import Fixture
 #--------------------------------------------------------------------
 # Test functions begin
 #--------------------------------------------------------------------
@@ -84,40 +86,48 @@ class TestMagicRunCopyPass(tt.TempFileMixin):
         _ip.magic('run -C %s' % self.fname)
         nt.assert_equal(_ip.user_ns['afunc'](), 42)
 
-class TestRunCopyDependencies(object):
+class TestRunCopyDependencies(Fixture):
     """ Trying to get deep copy working when file has dependencies """
 
-    def setUp(self):
-        pass
+    def test_smoketest(self):
+        """ Tests for test config components """
 
-    def tearDown(self):
-        pass
+        dep_name, dep_fn = self.new_module("""
+var = 6
+""")
+        mod_name, mod_fn = self.new_module("""
+from %s import var\n
+\n
+variable = var\n
+\n
+def afunc():\n
+    return variable\n
+        """ % dep_name)
+
+        #
+        # Test module contents
+        #
+        mod = sys.modules[mod_name]
+        dep = sys.modules[dep_name]
+
+        def check_module_contents():
+            nt.assert_equal(mod.var, 6)
+            nt.assert_equal(dep.variable, 6)
+
+        check_module_contents()
+
+        #
+        # Load module with a dependency
+        #
+        
+        
 
     def test_module_change_with_dependency(self):
         """ Autoreload module with dependencies """
         # not going to be able to use temp files here.
 
         
-        module = tt.TempFileMixin()
-        dependency = tt.TempFileMixin()
-
-        dependency.mktmp("")
-        dependency_name = dependency.fname
-
-        # point of departure. You'll need to parse out a couple things
-        # so you can use the temp file as an import
-
-        dependency.mktmp("var = 6\n")
-        module.mktmp("from "+ dependency_name[5:-3] +" import var\n"
-                     "avar = var\n"
-                     "def afunc():\n"
-                     "  return avar\n")
-
-        _ip.magic('run -C %s' % module.fname)
-        nt.assert_equal(_ip.user_ns['afunc'](), 6)
-
-        empty = tt.TempFileMixin()
-        empty.mktmp("")
+        pass
         
         
         

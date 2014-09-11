@@ -43,53 +43,11 @@ class TestMagicRunCopyPass(tt.TempFileMixin):
         # shut down autoreload
         self._reloader.enabled = False
 
-    def run_tmpfile(self):
-        _ip = get_ipython()
-        # watch out for windows here, check test_run.py
-        _ip.magic('run %s' % self.fname) # not understanding this bit
-
-    def write_file(self, filename, content):
-        """
-        Write a file, and force a timestamp difference of at least one second
-
-        Notes
-        -----
-        Python's .pyc files record the timestamp of their compilation
-        with a time resolution of one second.
-
-        Therefore, we need to force a timestamp difference between .py
-        and .pyc, without having the .py file be timestamped in the
-        future, and without changing the timestamp of the .pyc file
-        (because that is stored in the file).  The only reliable way
-        to achieve this seems to be to sleep.
-        """
-
-        # Sleep one second + eps
-        time.sleep(1.05)
-
-        # Write
-        f = open(filename, 'w')
-        try:
-            f.write(content)
-        finally:
-            f.close()
-
-    def new_module(self, code):
-        mod_name, mod_fn = self.get_module()
-        f = open(mod_fn, 'w')
-        try:
-            f.write(code)
-        finally:
-            f.close()
-        return mod_name, mod_fn
-
     def test_run_file(self):
         """ Test a file without dependencies """
         self.mktmp("avar = 1\n"
                    "def afunc():\n"
                    "  return avar\n")
-        empty = tt.TempFileMixin()
-        empty.mktmp("")
 
         _ip.magic('run %s' % self.fname)
         nt.assert_equal(_ip.user_ns['afunc'](), 1)
@@ -99,52 +57,67 @@ class TestMagicRunCopyPass(tt.TempFileMixin):
         self.mktmp("avar = 1\n"
                    "def afunc():\n"
                    "  return avar\n")
-        empty = tt.TempFileMixin()
-        empty.mktmp("")
 
         _ip.magic('run -C %s' % self.fname)
         nt.assert_equal(_ip.user_ns['afunc'](), 1)
 
     def test_module_change_with_no_dependency(self):
         """ Autoreload module without dependencies """
-        # create new module
-        self.write_file('mod_fn.py', """
-x = 6
-
-def afunc():
-    return x
-""")
-        _ip.magic('run -C %s' % 'mod_fn.py')
+        self.mktmp("avar = 6\n"
+                   "def afunc():\n"
+                   "  return avar\n")
+       
+        _ip.magic('run -C %s' % self.fname)
         nt.assert_equal(_ip.user_ns['afunc'](), 6)
-        # change new module
-        self.write_file('mod_fn.py', """
-x = 7
 
-def afunc():
-    return x
-""")
-        _ip.magic('run -C %s' % 'mod_fn.py')
+        # now change contents of temp file
+        self.mktmp("avar = 7\n"
+                   "def afunc():\n"
+                   "  return avar\n")
+        _ip.magic('run -C %s' % self.fname)
         nt.assert_equal(_ip.user_ns['afunc'](), 7)
+
+        # third time is the charm
+        self.mktmp("avar = 42\n"
+                   "def afunc():\n"
+                   "  return avar\n")
+        _ip.magic('run -C %s' % self.fname)
+        nt.assert_equal(_ip.user_ns['afunc'](), 42)
+
+class TestRunCopyDependencies(object):
+    """ Trying to get deep copy working when file has dependencies """
+
+    def setUp(self):
+        pass
+
+    def tearDown(self):
+        pass
 
     def test_module_change_with_dependency(self):
         """ Autoreload module with dependencies """
+        # not going to be able to use temp files here.
 
-        # create dependency
-        self.write_file('my_dependency.py', """
-var = 6
-""")
-        # create module
-        self.write_file('mod_fn.py', """
-from my_dependency import var
+        
+        module = tt.TempFileMixin()
+        dependency = tt.TempFileMixin()
 
-x = var
+        dependency.mktmp("")
+        dependency_name = dependency.fname
 
-def afunc():
-    return x
-""")
-        # test module (mod_fn)
-        nt.assert_equal(_ip.user_ns['afunc'](), 6) # take a closer
-        # look at user_ns
+        # point of departure. You'll need to parse out a couple things
+        # so you can use the temp file as an import
+
+        dependency.mktmp("var = 6\n")
+        module.mktmp("from "+ dependency_name[5:-3] +" import var\n"
+                     "avar = var\n"
+                     "def afunc():\n"
+                     "  return avar\n")
+
+        _ip.magic('run -C %s' % module.fname)
+        nt.assert_equal(_ip.user_ns['afunc'](), 6)
+
+        empty = tt.TempFileMixin()
+        empty.mktmp("")
         
         
         
